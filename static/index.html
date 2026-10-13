@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assistente de Cidades</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+    .chat {
+      background: #fff;
+      width: 100%;
+      max-width: 720px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, .08);
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      font-weight: 600;
+    }
+    header small { display: block; font-weight: 400; color: #6b7280; }
+    #mensagens {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .usuario {
+      align-self: flex-end;
+      background: #2563eb;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .ia {
+      align-self: flex-start;
+      background: #f3f4f6;
+      color: #111827;
+      border-bottom-left-radius: 4px;
+    }
+    .ia a { color: #2563eb; }
+    .erro { background: #fee2e2; color: #b91c1c; }
+    .digitando { display: inline-flex; gap: 4px; padding: 14px; }
+    .digitando span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+      animation: pulso 1.2s infinite ease-in-out;
+    }
+    .digitando span:nth-child(2) { animation-delay: .2s; }
+    .digitando span:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulso {
+      0%, 80%, 100% { opacity: .3; transform: scale(.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+    form {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid #e5e7eb;
+    }
+    input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 999px;
+      font-size: 1rem;
+    }
+    input:focus { outline: 2px solid #2563eb; border-color: transparent; }
+    button {
+      padding: 0 20px;
+      border: 0;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    .abas { display: flex; gap: 8px; margin-top: 12px; }
+    .aba {
+      padding: 8px 14px;
+      background: #e5e7eb;
+      color: #374151;
+      font-size: .9rem;
+    }
+    .aba.ativa { background: #2563eb; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="chat">
+    <header>
+      <span id="titulo">Assistente de Cidades</span>
+      <small id="subtitulo">Pergunte o clima ou peça um resumo de uma cidade.</small>
+      <div class="abas">
+        <button type="button" class="aba ativa" data-agente="cidade">Cidades</button>
+        <button type="button" class="aba" data-agente="artigo">Artigos científicos</button>
+      </div>
+    </header>
+
+    <div id="mensagens">
+      <div class="msg ia">Olá! Qual cidade e qual informação você quer? (Ex.: "São Paulo, clima" ou "São Paulo, resumo")</div>
+    </div>
+
+    <form id="form">
+      <input id="cidade" placeholder="Ex.: Qual o clima em São Paulo?" autocomplete="off" required>
+      <button id="botao">Enviar</button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("form");
+    const cidade = document.getElementById("cidade");
+    const botao = document.getElementById("botao");
+    const mensagens = document.getElementById("mensagens");
+    const titulo = document.getElementById("titulo");
+    const subtitulo = document.getElementById("subtitulo");
+    const abas = document.querySelectorAll(".aba");
+
+    const AGENTES = {
+      cidade: {
+        titulo: "Assistente de Cidades",
+        subtitulo: "Pergunte o clima ou peça um resumo de uma cidade.",
+        placeholder: "Ex.: Qual o clima em São Paulo?",
+        saudacao: 'Olá! Qual cidade e qual informação você quer? (Ex.: "São Paulo, clima" ou "São Paulo, resumo")',
+      },
+      artigo: {
+        titulo: "Assistente de Artigos Científicos",
+        subtitulo: "Busque artigos científicos por assunto.",
+        placeholder: "Ex.: Artigos sobre inteligência artificial na saúde",
+        saudacao: 'Olá! Sobre qual assunto você quer buscar artigos científicos? (Ex.: "machine learning na medicina")',
+      },
+    };
+
+    let agenteAtual = "cidade";
+    const conversas = {};
+
+    function trocarAgente(novo) {
+      if (novo === agenteAtual) return;
+
+      conversas[agenteAtual] = mensagens.innerHTML;
+      agenteAtual = novo;
+
+      mensagens.innerHTML = "";
+      if (conversas[novo] !== undefined) {
+        mensagens.innerHTML = conversas[novo];
+      } else {
+        adicionar(AGENTES[novo].saudacao, "ia");
+      }
+
+      titulo.textContent = AGENTES[novo].titulo;
+      subtitulo.textContent = AGENTES[novo].subtitulo;
+      cidade.placeholder = AGENTES[novo].placeholder;
+      abas.forEach((aba) => aba.classList.toggle("ativa", aba.dataset.agente === novo));
+      mensagens.scrollTop = mensagens.scrollHeight;
+      cidade.focus();
+    }
+
+    abas.forEach((aba) => {
+      aba.addEventListener("click", () => trocarAgente(aba.dataset.agente));
+    });
+
+    function formatar(texto) {
+      const seguro = texto
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      return seguro
+        .replace(/^#{1,6}\s*(.+)$/gm, "<strong>$1</strong>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(
+          /(https?:\/\/[^\s<]+)/g,
+          '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+        );
+    }
+
+    function adicionar(texto, classe) {
+      const el = document.createElement("div");
+      el.className = "msg " + classe;
+      if (classe === "ia") {
+        el.innerHTML = formatar(texto);
+      } else {
+        el.textContent = texto;
+      }
+      mensagens.appendChild(el);
+      mensagens.scrollTop = mensagens.scrollHeight;
+      return el;
+    }
+
+    function adicionarDigitando() {
+      const el = document.createElement("div");
+      el.className = "msg ia digitando";
+      el.innerHTML = "<span></span><span></span><span></span>";
+      mensagens.appendChild(el);
+      mensagens.scrollTop = mensagens.scrollHeight;
+      return el;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const texto = cidade.value.trim();
+      if (!texto) return;
+
+      adicionar(texto, "usuario");
+      cidade.value = "";
+      botao.disabled = true;
+      abas.forEach((aba) => (aba.disabled = true));
+      const digitando = adicionarDigitando();
+
+      try {
+        const resp = await fetch(`/api/informacao?agente=${agenteAtual}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pergunta: texto }),
+        });
+        if (!resp.ok) {
+          const dados = await resp.json();
+          throw new Error(dados.erro);
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let acumulado = "";
+        let el = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acumulado += decoder.decode(value, { stream: true });
+          if (!el) {
+            digitando.remove();
+            el = adicionar("", "ia");
+          }
+          el.innerHTML = formatar(acumulado);
+          mensagens.scrollTop = mensagens.scrollHeight;
+        }
+
+        if (!el) {
+          digitando.remove();
+          adicionar("Sem resposta do agente.", "ia erro");
+        }
+      } catch (err) {
+        digitando.remove();
+        adicionar(err.message, "ia erro");
+      } finally {
+        botao.disabled = false;
+        abas.forEach((aba) => (aba.disabled = false));
+        cidade.focus();
+      }
+    });
+  </script>
+</body>
+</html>
