@@ -19,6 +19,19 @@ AGENTES = {
 }
 
 
+def _extrair_texto(content) -> str:
+    """O content do chunk pode ser str ou lista de blocos; devolve só o texto."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            bloco if isinstance(bloco, str) else bloco.get("text", "")
+            for bloco in content
+            if isinstance(bloco, (str, dict))
+        )
+    return ""
+
+
 @app.get("/")
 def index():
     return send_from_directory("static", "index.html")
@@ -43,8 +56,10 @@ def informacao():
                 config={"configurable": {"thread_id": thread_id}},
                 stream_mode="messages",
             ):
-                if isinstance(chunk, AIMessageChunk) and chunk.content:
-                    yield chunk.content
+                if isinstance(chunk, AIMessageChunk):
+                    texto = _extrair_texto(chunk.content)
+                    if texto:
+                        yield texto
         except Exception as e:
             yield f"\n\nFalha ao consultar o agente: {e}"
 
