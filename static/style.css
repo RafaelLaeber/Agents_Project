@@ -404,17 +404,152 @@ button, textarea { font-family: inherit; }
 }
 
 .acoes { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
-.linha.ia:hover .acoes { opacity: 1; }
+.linha.ia:hover .acoes,
+.acoes:focus-within { opacity: 1; }
+@media (hover: none) { .acoes { opacity: 1; } }
 .acao {
+  width: 30px;
+  height: 30px;
   border: 0;
   background: transparent;
   color: var(--texto-fraco);
-  font-size: 12.5px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 .acao:hover { background: var(--hover); color: var(--texto); }
+
+/* ==========================================================
+   Rota: "Orquestrador → Agente"
+   ========================================================== */
+.rota {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+.rota[hidden] { display: none; }
+.rota-seta { font-weight: 400; }
+.rota-agente {
+  background: var(--acento-bg);
+  color: var(--acento-texto);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.rota-extra { font-weight: 500; }
+
+/* ==========================================================
+   Cards de artigos
+   ========================================================== */
+.bloco.largo { flex: 1; max-width: 100%; }
+
+.artigos { display: flex; flex-direction: column; gap: 14px; }
+.artigos-intro { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--texto); }
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  position: relative;
+  background: var(--campo);
+  border: 1px solid var(--campo-borda);
+  border-radius: 14px;
+  transition: border-color .15s;
+}
+.card:hover,
+.card.aberto { border-color: var(--chip-borda-hover); }
+
+.card-topo {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 18px 56px 18px 20px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card-topo:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+.card-num {
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.1;
+  color: var(--acento);
+}
+.card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.card-titulo {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--texto-forte);
+}
+.card-meta { font-size: 13px; color: var(--texto-fraco); }
+.card-resumo {
+  margin-top: 4px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--texto-medio);
+}
+
+.card-link {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--texto-fraco);
+}
+.card-link:hover { background: var(--hover); color: var(--texto-forte); }
+
+.card-detalhe {
+  padding: 0 20px 18px 70px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--texto-medio);
+}
+.card-detalhe[hidden] { display: none; }
+.card-detalhe p { margin: 0 0 12px; }
+.card-detalhe .card-detalhe-titulo {
+  margin: 0 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--campo-borda);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+.card-ler {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
 
 .digitando { display: inline-flex; gap: 5px; padding-top: 12px; }
 .digitando span {
@@ -450,4 +585,7 @@ button, textarea { font-family: inherit; }
   #mensagens { padding: 8px 16px 16px; }
   .principal.conversando .palco { padding: 0 16px; }
   .bloco { max-width: 92%; }
+  .card-topo { grid-template-columns: 26px 1fr; gap: 10px; padding: 16px 50px 16px 16px; }
+  .card-num { font-size: 22px; }
+  .card-detalhe { padding: 0 16px 16px; }
 }

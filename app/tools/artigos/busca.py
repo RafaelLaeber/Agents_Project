@@ -1,6 +1,7 @@
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict
 from typing import Literal
 
 from langchain.tools import tool
@@ -81,10 +82,14 @@ def _formatar(numero: int, artigo: Artigo) -> str:
     )
 
 
-@tool
-def search_articles_tool(topic: str, area: Area = "geral") -> str:
+# content_and_artifact: a tool devolve (texto, dados). O LLM lê só o texto;
+# os dados ficam no ToolMessage.artifact para o front montar os cards.
+@tool(response_format="content_and_artifact")
+def search_articles_tool(topic: str, area: Area = "geral") -> tuple[str, list[dict]]:
     """
-    Busca artigos científicos em vários repositórios abertos. O tema deve estar em inglês.
+    Busca artigos científicos em vários repositórios abertos.
+    O tema deve estar em inglês e ser curto: de 2 a 5 palavras-chave, sem pontuação
+    (ex.: "gravitational waves", "gestational diabetes treatment").
     Escolha a área:
     - "fisica": física, astronomia, astrofísica, cosmologia
     - "exatas": computação, matemática, estatística, engenharia
@@ -94,11 +99,15 @@ def search_articles_tool(topic: str, area: Area = "geral") -> str:
     - "geral": qualquer outro assunto ou quando a área não for clara
     """
 
+    # Pontuação vira sintaxe de busca em algumas APIs (":" é campo na DOAJ, por ex.).
+    topic = re.sub(r"[^\w\s-]", " ", topic).strip()
     listas = _consultar_fontes(topic, FONTES[area])
     artigos = _intercalar_sem_repetir(listas)
     if not artigos:
-        return f"Nenhum artigo encontrado para '{topic}'."
+        return f"Nenhum artigo encontrado para '{topic}'.", []
 
     # Com resumo primeiro; o sort é estável, então a ordem de relevância se mantém.
     artigos.sort(key=lambda a: not a.resumo)
-    return "\n\n".join(_formatar(i, a) for i, a in enumerate(artigos[:QUANTIDADE], start=1))
+    escolhidos = artigos[:QUANTIDADE]
+    texto = "\n\n".join(_formatar(i, a) for i, a in enumerate(escolhidos, start=1))
+    return texto, [asdict(a) for a in escolhidos]

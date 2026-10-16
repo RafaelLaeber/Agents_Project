@@ -1,6 +1,6 @@
 from typing import Iterator, Literal
 
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel
@@ -100,20 +100,60 @@ def _texto(content) -> str:
     return ""
 
 
-def transmitir(pergunta: str, thread_id: str) -> Iterator[str]:
-    """Roteia pela chain e transmite os tokens do subagente escolhido."""
+def _artigos(pergunta: str, config: dict) -> Iterator[dict]:
+    """Roda o agente de artigos e junta os dados da ferramenta com os resumos do agente."""
+    estado = agente_artigo.invoke(_entrada_agente({"pergunta": pergunta}), config=config)
+    resposta = estado.get("structured_response")
+
+    # O histórico da thread acumula conversas anteriores; só interessa a rodada atual,
+    # ou seja, o que veio depois da última mensagem do usuário.
+    mensagens = estado["messages"]
+    inicio = max(i for i, m in enumerate(mensagens) if isinstance(m, HumanMessage))
+    dados = []
+    for m in mensagens[inicio:]:
+        if isinstance(m, ToolMessage) and m.artifact:
+            dados = m.artifact
+
+    if resposta is None:
+        yield {"tipo": "texto", "conteudo": "Não consegui montar a resposta dos artigos."}
+        return
+
+    itens = []
+    for resumido in resposta.artigos:
+        if 1 <= resumido.numero <= len(dados):
+            itens.append({**dados[resumido.numero - 1], "resumo_curto": resumido.resumo_curto})
+
+    yield {"tipo": "artigos", "introducao": resposta.introducao, "itens": itens}
+
+
+def transmitir(pergunta: str, thread_id: str) -> Iterator[dict]:
+    """
+    Roteia a pergunta e transmite a resposta como eventos:
+    - {"tipo": "rota", "agente": ...}       qual agente o orquestrador escolheu
+    - {"tipo": "texto", "conteudo": ...}    pedaço de texto (streaming)
+    - {"tipo": "artigos", "introducao": ..., "itens": [...]}   resultado do agente de artigos
+    """
     destino = roteador.invoke({"pergunta": pergunta}).destino
+    yield {"tipo": "rota", "agente": destino}
+
     agente = AGENTES.get(destino)
     if agente is None:
-        yield MSG_FORA_ESCOPO
+        yield {"tipo": "texto", "conteudo": MSG_FORA_ESCOPO}
+        return
+
+    config = {"configurable": {"thread_id": thread_id}}
+
+    # O agente de artigos responde estruturado (para os cards), então não há tokens para transmitir.
+    if destino == "artigo":
+        yield from _artigos(pergunta, config)
         return
 
     for chunk, _ in agente.stream(
         _entrada_agente({"pergunta": pergunta}),
-        config={"configurable": {"thread_id": thread_id}},
+        config=config,
         stream_mode="messages",
     ):
         if isinstance(chunk, AIMessageChunk):
             texto = _texto(chunk.content)
             if texto:
-                yield texto
+                yield {"tipo": "texto", "conteudo": texto}

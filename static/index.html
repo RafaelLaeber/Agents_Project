@@ -122,61 +122,174 @@
       mensagens.scrollTop = mensagens.scrollHeight;
     }
 
-    // ---------- Mensagens ----------
-    function adicionar(texto, classe) {
-      const ehIa = classe.startsWith("ia");
-      const linha = document.createElement("div");
-      linha.className = "linha " + (ehIa ? "ia" : "usuario");
+    const ICONE_COPIAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    const ICONE_COPIADO = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+    const ICONE_EXTERNO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 
-      if (ehIa) {
-        const avatar = document.createElement("div");
-        avatar.className = "avatar";
-        avatar.innerHTML = ICONE_IA;
-        linha.appendChild(avatar);
-      }
+    // Nome exibido de cada destino do orquestrador.
+    const NOMES_AGENTES = {
+      localidade: "Localidades",
+      artigo: "Artigos científicos",
+      fora_escopo: "Fora do escopo",
+    };
 
-      const bloco = document.createElement("div");
-      bloco.className = "bloco";
-
-      const el = document.createElement("div");
-      el.className = "msg" + (classe.includes("erro") ? " erro" : "");
-      if (ehIa) {
-        el.innerHTML = formatar(texto);
-      } else {
-        el.textContent = texto;
-      }
-
-      bloco.appendChild(el);
-      linha.appendChild(bloco);
-      conteudo.appendChild(linha);
-      rolar();
-      return el;
+    function escapar(texto) {
+      return String(texto ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
 
-    // Botões que aparecem ao passar o mouse sobre a resposta.
-    function adicionarAcoes(el) {
+    // Só aceita links http(s), para um link vindo da API não executar código.
+    function linkSeguro(url) {
+      return /^https?:\/\//i.test(url || "") ? url : "#";
+    }
+
+    // ---------- Mensagens ----------
+    function adicionarUsuario(texto) {
+      const linha = document.createElement("div");
+      linha.className = "linha usuario";
+      linha.innerHTML = '<div class="bloco"><div class="msg"></div></div>';
+      linha.querySelector(".msg").textContent = texto;
+      conteudo.appendChild(linha);
+      rolar();
+    }
+
+    // Cria a resposta da IA: selo da rota (escondido até chegar) + corpo com "digitando".
+    function criarRespostaIa() {
+      const linha = document.createElement("div");
+      linha.className = "linha ia";
+      linha.innerHTML = `
+        <div class="avatar">${ICONE_IA}</div>
+        <div class="bloco">
+          <div class="rota" hidden></div>
+          <div class="msg digitando"><span></span><span></span><span></span></div>
+        </div>`;
+      conteudo.appendChild(linha);
+      rolar();
+      return {
+        bloco: linha.querySelector(".bloco"),
+        rota: linha.querySelector(".rota"),
+        corpo: linha.querySelector(".msg"),
+      };
+    }
+
+    function mostrarRota(resposta, agente) {
+      resposta.rota.innerHTML = `
+        <span>Orquestrador</span>
+        <span class="rota-seta">→</span>
+        <span class="rota-agente">${escapar(NOMES_AGENTES[agente] || agente)}</span>
+        <span class="rota-extra"></span>`;
+      resposta.rota.hidden = false;
+    }
+
+    function mostrarTexto(resposta, texto) {
+      resposta.corpo.className = "msg";
+      resposta.corpo.innerHTML = formatar(texto);
+    }
+
+    function mostrarErro(resposta, mensagem) {
+      resposta.corpo.className = "msg erro";
+      resposta.corpo.textContent = mensagem;
+    }
+
+    function criarCard(artigo, numero) {
+      const autores =
+        artigo.autores.slice(0, 3).join(", ") + (artigo.autores.length > 3 ? " et al." : "");
+      const meta = [autores || "Autores não informados", artigo.fonte, artigo.ano]
+        .filter(Boolean)
+        .join(" · ");
+      const link = linkSeguro(artigo.link);
+
+      const card = document.createElement("li");
+      card.className = "card";
+      card.innerHTML = `
+        <button type="button" class="card-topo" aria-expanded="false">
+          <span class="card-num">${numero}</span>
+          <span class="card-info">
+            <span class="card-titulo">${escapar(artigo.titulo)}</span>
+            <span class="card-meta">${escapar(meta)}</span>
+            <span class="card-resumo">${escapar(artigo.resumo_curto)}</span>
+          </span>
+        </button>
+        <a class="card-link" href="${escapar(link)}" target="_blank" rel="noopener noreferrer"
+           aria-label="Abrir artigo completo" title="Abrir artigo completo">${ICONE_EXTERNO}</a>
+        <div class="card-detalhe" hidden>
+          <p class="card-detalhe-titulo">Resumo original</p>
+          <p>${escapar(artigo.resumo || "Resumo não disponível.")}</p>
+          <a class="card-ler" href="${escapar(link)}" target="_blank" rel="noopener noreferrer">
+            Ler artigo completo ${ICONE_EXTERNO}
+          </a>
+        </div>`;
+
+      // Clicar no card abre/fecha o resumo completo.
+      const topo = card.querySelector(".card-topo");
+      const detalhe = card.querySelector(".card-detalhe");
+      topo.addEventListener("click", () => {
+        const abrir = detalhe.hidden;
+        detalhe.hidden = !abrir;
+        card.classList.toggle("aberto", abrir);
+        topo.setAttribute("aria-expanded", String(abrir));
+      });
+      return card;
+    }
+
+    function mostrarArtigos(resposta, evento) {
+      const total = evento.itens.length;
+      resposta.bloco.classList.add("largo");
+      resposta.rota.querySelector(".rota-extra").textContent =
+        `· ${total} ${total === 1 ? "resultado" : "resultados"}`;
+
+      resposta.corpo.className = "artigos";
+      resposta.corpo.innerHTML = "";
+
+      const intro = document.createElement("p");
+      intro.className = "artigos-intro";
+      // O modelo às vezes termina a introdução com ":"; troca por ponto antes da dica.
+      const introducao = evento.introducao.trim().replace(/[:;,]$/, ".");
+      intro.textContent = introducao + (total ? " Abra um para ver o resumo completo." : "");
+      resposta.corpo.appendChild(intro);
+
+      if (total) {
+        const lista = document.createElement("ol");
+        lista.className = "cards";
+        evento.itens.forEach((artigo, i) => lista.appendChild(criarCard(artigo, i + 1)));
+        resposta.corpo.appendChild(lista);
+      }
+    }
+
+    // Versão em texto dos artigos, para o botão de copiar.
+    function artigosComoTexto(evento) {
+      const itens = evento.itens.map((a, i) =>
+        `${i + 1}. ${a.titulo}\n${a.autores.join(", ")} · ${a.fonte} · ${a.ano ?? ""}\n${a.resumo_curto}\n${a.link}`
+      );
+      return [evento.introducao, ...itens].join("\n\n");
+    }
+
+    // Botão de copiar que aparece ao passar o mouse sobre a resposta.
+    function adicionarAcoes(resposta, texto) {
       const acoes = document.createElement("div");
       acoes.className = "acoes";
 
       const copiar = document.createElement("button");
       copiar.type = "button";
       copiar.className = "acao";
-      copiar.textContent = "Copiar";
+      copiar.title = "Copiar";
+      copiar.setAttribute("aria-label", "Copiar resposta");
+      copiar.innerHTML = ICONE_COPIAR;
       copiar.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(el.innerText);
-        copiar.textContent = "Copiado";
-        setTimeout(() => (copiar.textContent = "Copiar"), 1500);
+        await navigator.clipboard.writeText(texto);
+        copiar.innerHTML = ICONE_COPIADO;
+        copiar.title = "Copiado";
+        setTimeout(() => {
+          copiar.innerHTML = ICONE_COPIAR;
+          copiar.title = "Copiar";
+        }, 1500);
       });
 
       acoes.appendChild(copiar);
-      el.parentElement.appendChild(acoes);
-    }
-
-    function adicionarDigitando() {
-      const el = adicionar("", "ia");
-      el.classList.add("digitando");
-      el.innerHTML = "<span></span><span></span><span></span>";
-      return el.closest(".linha");
+      resposta.bloco.appendChild(acoes);
     }
 
     // ---------- Campo de texto ----------
@@ -201,11 +314,31 @@
       if (!texto || botao.disabled) return;
 
       principal.classList.add("conversando");
-      adicionar(texto, "usuario");
+      adicionarUsuario(texto);
       pergunta.value = "";
       ajustarAltura();
       botao.disabled = true;
-      const digitando = adicionarDigitando();
+      const resposta = criarRespostaIa();
+
+      let textoAcumulado = "";
+      let textoParaCopiar = "";
+
+      // Cada linha do stream é um evento JSON (ver transmitir no orquestrador).
+      function processar(evento) {
+        if (evento.tipo === "rota") {
+          mostrarRota(resposta, evento.agente);
+        } else if (evento.tipo === "texto") {
+          textoAcumulado += evento.conteudo;
+          mostrarTexto(resposta, textoAcumulado);
+          textoParaCopiar = textoAcumulado;
+        } else if (evento.tipo === "artigos") {
+          mostrarArtigos(resposta, evento);
+          textoParaCopiar = artigosComoTexto(evento);
+        } else if (evento.tipo === "erro") {
+          mostrarErro(resposta, evento.mensagem);
+        }
+        rolar();
+      }
 
       try {
         const resp = await fetch("/api/informacao", {
@@ -220,30 +353,30 @@
 
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
-        let acumulado = "";
-        let el = null;
+        let pendente = "";
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          acumulado += decoder.decode(value, { stream: true });
-          if (!el) {
-            digitando.remove();
-            el = adicionar("", "ia");
-          }
-          el.innerHTML = formatar(acumulado);
-          rolar();
-        }
+          pendente += decoder.decode(value, { stream: true });
 
-        if (el) {
-          adicionarAcoes(el);
-        } else {
-          digitando.remove();
-          adicionar("Sem resposta do agente.", "ia erro");
+          // Um pedaço da rede pode trazer meia linha: processa só as completas.
+          let quebra;
+          while ((quebra = pendente.indexOf("\n")) >= 0) {
+            const linha = pendente.slice(0, quebra).trim();
+            pendente = pendente.slice(quebra + 1);
+            if (linha) processar(JSON.parse(linha));
+          }
+        }
+        if (pendente.trim()) processar(JSON.parse(pendente));
+
+        if (textoParaCopiar) {
+          adicionarAcoes(resposta, textoParaCopiar);
+        } else if (resposta.corpo.classList.contains("digitando")) {
+          mostrarErro(resposta, "Sem resposta do agente.");
         }
       } catch (err) {
-        digitando.remove();
-        adicionar(err.message, "ia erro");
+        mostrarErro(resposta, err.message);
       } finally {
         botao.disabled = false;
         pergunta.focus();

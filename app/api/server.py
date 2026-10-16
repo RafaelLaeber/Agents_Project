@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from flask import (
@@ -28,15 +29,18 @@ def informacao():
     if not pergunta:
         return jsonify(erro="Informe a pergunta."), 400
 
+    # NDJSON: um evento JSON por linha. O front lê linha a linha conforme chegam.
     def gerar():
         try:
-            yield from transmitir(pergunta, THREAD_ID)
+            for evento in transmitir(pergunta, THREAD_ID):
+                yield json.dumps(evento, ensure_ascii=False) + "\n"
         except Exception as e:
-            yield f"\n\nFalha ao consultar o agente: {e}"
+            erro = {"tipo": "erro", "mensagem": f"Falha ao consultar o agente: {e}"}
+            yield json.dumps(erro, ensure_ascii=False) + "\n"
 
     return Response(
         stream_with_context(gerar()),
-        mimetype="text/plain",
+        mimetype="application/x-ndjson",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
