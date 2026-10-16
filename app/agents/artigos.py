@@ -1,8 +1,7 @@
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessageChunk
-from tools import *
+from app.tools.artigos import search_articles_tool
 from langgraph.checkpoint.memory import InMemorySaver
-from model import llm
+from app.llm import llm
 
 
 agente_artigo = create_agent(
@@ -15,7 +14,7 @@ agente_artigo = create_agent(
 
     Use sempre a ferramenta de busca de artigos para responder. Nunca invente artigos, autores ou resumos.
     Responda em português e traduza os resumos, se estiverem em outro idioma.
-    Você sempre trará apenas 2 artigos científicos, mesmo que a ferramenta retorne mais resultados, 
+    Você sempre trará apenas 4 artigos científicos, mesmo que a ferramenta retorne mais resultados, 
     se a ferramenta não retornar artigos, diga que não encontrou resultados.
     """,
     checkpointer=InMemorySaver(),
